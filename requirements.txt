@@ -1,7 +1,15 @@
-numpy==1.19.5
-opencv_python==4.6.0.66
-pandas==1.1.5
-scipy==1.5.4
-tensorboardX==2.5.1
-torch==1.5.0
-tensorrt==10.1.0 --extra-index-url https://pypi.nvidia.com
+# Core scientific stack
+numpy>=1.26.0
+scipy>=1.11.0
+pandas>=2.1.0
+opencv-python>=4.9.0
+tensorboardX>=2.6.2
+onnx>=1.16.0
+
+# CUDA PyTorch used by the current training environment.
+# For CPU-only environments, replace these three lines with the official CPU
+# wheels from https://pytorch.org/get-started/locally/.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.10.0+cu128
+torchvision==0.25.0+cu128
+torchaudio==2.10.0+cu128

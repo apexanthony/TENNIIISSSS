@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TrackNet 控制台</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <h1>TrackNet 控制台</h1>
+        <p id="projectRoot">加载项目...</p>
+      </div>
+      <nav class="mode-tabs" aria-label="功能切换">
+        <button class="tab active" data-view="infer" type="button">推理</button>
+        <button class="tab" data-view="eval" type="button">测试</button>
+        <button class="tab" data-view="train" type="button">训练</button>
+        <button class="tab" data-view="results" type="button">结果</button>
+      </nav>
+      <button id="refreshBtn" class="ghost" type="button">刷新</button>
+    </header>
+
+    <main class="app-shell">
+      <section class="workspace">
+        <section id="view-infer" class="panel view active">
+          <div class="panel-title">
+            <div>
+              <h2>视频推理</h2>
+              <p>默认 V3 270x480，阈值 0.70，峰值窗口 15。</p>
+            </div>
+            <span class="default-pill">推荐</span>
+          </div>
+
+          <form id="uploadForm" class="upload-strip">
+            <input id="videoFile" type="file" accept="video/*" />
+            <button type="submit" class="secondary">上传视频</button>
+          </form>
+
+          <div class="simple-grid">
+            <label>
+              视频
+              <select id="inferVideo"></select>
+            </label>
+            <label>
+              引擎
+              <select id="inferEngine">
+                <option value="pt">PT / CUDA（默认）</option>
+                <option value="onnx">ONNX / OpenCV DNN</option>
+              </select>
+            </label>
+          </div>
+
+          <details class="advanced">
+            <summary>高级参数</summary>
+            <div class="form-grid">
+              <label class="pt-only">
+                PT 权重
+                <select id="ptModel"></select>
+              </label>
+              <label class="onnx-only hidden">
+                ONNX
+                <select id="onnxModel"></select>
+              </label>
+              <label>
+                输入宽 <span class="default-text">默认 480</span>
+                <input id="inferWidth" type="number" value="480" />
+              </label>
+              <label>
+                输入高 <span class="default-text">默认 270</span>
+                <input id="inferHeight" type="number" value="270" />
+              </label>
+              <label>
+                阈值 <span class="default-text">默认 0.70</span>
+                <input id="inferThreshold" type="number" value="0.70" step="0.01" />
+              </label>
+              <label>
+                峰值窗口 <span class="default-text">默认 15</span>
+                <input id="inferPeakWindow" type="number" value="15" />
+              </label>
+              <label class="pt-only">
+                PT batch <span class="default-text">默认 1</span>
+                <input id="inferBatch" type="number" value="1" />
+              </label>
+              <label class="pt-only">
+                PT 设备
+                <select id="inferDevice">
+                  <option value="cuda">cuda（默认）</option>
+                  <option value="cpu">cpu</option>
+                </select>
+              </label>
+              <label class="onnx-only hidden">
+                ONNX target
+                <select id="onnxTarget">
+                  <option value="cpu">cpu（默认）</option>
+                  <option value="cuda">cuda</option>
+                </select>
+              </label>
+              <label>
+                轨迹长度 <span class="default-text">默认 7</span>
+                <input id="traceLength" type="number" value="7" />
+              </label>
+            </div>
+          </details>
+
+          <button id="startInferBtn" class="primary" type="button">开始推理</button>
+        </section>
+
+        <section id="view-eval" class="panel view">
+          <div class="panel-title">
+            <div>
+              <h2>阈值测试</h2>
+              <p>默认使用最终 PT 权重，快速扫描验证集指标。</p>
+            </div>
+            <span class="default-pill">默认最终 PT</span>
+          </div>
+
+          <div class="simple-grid">
+            <label>
+              权重
+              <select id="evalModel"></select>
+            </label>
+            <label>
+              设备
+              <select id="evalDevice">
+                <option value="cuda">cuda（默认）</option>
+                <option value="cpu">cpu</option>
+              </select>
+            </label>
+          </div>
+
+          <details class="advanced">
+            <summary>高级参数</summary>
+            <div class="form-grid">
+              <label>
+                阈值列表 <span class="default-text">含 0.70</span>
+                <input id="evalThresholds" value="0.60,0.65,0.68,0.70,0.72,0.75,0.80,0.85,0.90" />
+              </label>
+              <label>
+                输入宽 <span class="default-text">默认 480</span>
+                <input id="evalWidth" type="number" value="480" />
+              </label>
+              <label>
+                输入高 <span class="default-text">默认 270</span>
+                <input id="evalHeight" type="number" value="270" />
+              </label>
+              <label>
+                heatmap 半径 <span class="default-text">默认 6</span>
+                <input id="evalRadius" type="number" value="6" />
+              </label>
+              <label>
+                heatmap sigma <span class="default-text">默认 2.25</span>
+                <input id="evalSigma" type="number" value="2.25" step="0.05" />
+              </label>
+              <label>
+                峰值窗口 <span class="default-text">默认 15</span>
+                <input id="evalPeakWindow" type="number" value="15" />
+              </label>
+              <label>
+                测试 batch <span class="default-text">默认 4</span>
+                <input id="evalBatch" type="number" value="4" min="1" />
+              </label>
+            </div>
+          </details>
+
+          <button id="startEvalBtn" class="primary" type="button">开始测试</button>
+        </section>
+
+        <section id="view-train" class="panel view">
+          <div class="panel-title">
+            <div>
+              <h2>V3 训练</h2>
+              <p>默认从最优权重继续训练，可在高级参数中调整分辨率与损失权重。</p>
+            </div>
+            <span class="default-pill">继续训练</span>
+          </div>
+
+          <div class="simple-grid">
+            <label>
+              实验名
+              <input id="trainExpId" value="webui_v3_run" />
+            </label>
+            <label>
+              初始化权重
+              <select id="trainResume"></select>
+            </label>
+            <label>
+              目标 epoch
+              <input id="trainEpochs" type="number" value="20" />
+            </label>
+            <label>
+              设备
+              <select id="trainDevice">
+                <option value="cuda">cuda（默认）</option>
+                <option value="cpu">cpu</option>
+              </select>
+            </label>
+          </div>
+
+          <details class="advanced">
+            <summary>高级参数</summary>
+            <div class="form-grid">
+              <label>
+                起始 epoch <span class="default-text">默认 0</span>
+                <input id="trainStartEpoch" type="number" value="0" />
+              </label>
+              <label>
+                学习率 <span class="default-text">默认 0.0002</span>
+                <input id="trainLr" type="number" value="0.0002" step="0.0001" />
+              </label>
+              <label>
+                batch <span class="default-text">默认 12</span>
+                <input id="trainBatch" type="number" value="12" />
+              </label>
+              <label>
+                每轮步数 <span class="default-text">默认 200</span>
+                <input id="trainSteps" type="number" value="200" />
+              </label>
+              <label>
+                验证间隔 <span class="default-text">默认 5</span>
+                <input id="trainValIntervals" type="number" value="5" />
+              </label>
+              <label>
+                输入宽 <span class="default-text">默认 480</span>
+                <input id="trainWidth" type="number" value="480" />
+              </label>
+              <label>
+                输入高 <span class="default-text">默认 270</span>
+                <input id="trainHeight" type="number" value="270" />
+              </label>
+              <label>
+                pos_weight <span class="default-text">默认 120</span>
+                <input id="trainPosWeight" type="number" value="120" />
+              </label>
+              <label>
+                阈值 <span class="default-text">默认 0.70</span>
+                <input id="trainThreshold" type="number" value="0.70" step="0.01" />
+              </label>
+              <label class="check">
+                <input id="trainAmp" type="checkbox" checked />
+                AMP
+              </label>
+              <label class="check">
+                <input id="trainAugment" type="checkbox" />
+                数据增强
+              </label>
+            </div>
+          </details>
+
+          <button id="startTrainBtn" class="primary" type="button">开始训练</button>
+        </section>
+
+        <section id="view-results" class="panel view">
+          <div class="panel-title">
+            <div>
+              <h2>输出结果</h2>
+              <p>选择视频可在右侧预览，选择 CSV 会直接打开。</p>
+            </div>
+          </div>
+          <div id="resultList" class="result-list"></div>
+        </section>
+      </section>
+
+      <aside class="side-stack">
+        <section class="panel compact-panel">
+          <div class="panel-title">
+            <h2>任务</h2>
+            <button id="stopJobBtn" class="ghost danger" type="button">停止</button>
+          </div>
+          <div id="jobsList" class="jobs-list"></div>
+        </section>
+
+        <section class="panel compact-panel preview-panel">
+          <div class="panel-title">
+            <h2>日志</h2>
+          </div>
+          <pre id="jobLog" class="log"></pre>
+        </section>
+
+        <section class="panel compact-panel preview-panel">
+          <div class="panel-title">
+            <h2>预览</h2>
+          </div>
+          <div class="preview-box">
+            <video id="previewVideo" controls></video>
+            <img id="previewStream" class="hidden" alt="视频帧流预览" />
+          </div>
+          <div id="previewStatus" class="status">推理完成后会自动加载最新视频，也可以在“结果”里手动选择。</div>
+        </section>
+      </aside>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

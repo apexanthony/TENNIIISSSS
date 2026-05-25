@@ -1,0 +1,402 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --panel-soft: #f8fafb;
+  --ink: #182026;
+  --muted: #66727f;
+  --line: #dce3ea;
+  --line-strong: #c5d0da;
+  --accent: #0f766e;
+  --accent-dark: #115e59;
+  --accent-soft: #e7f4f2;
+  --blue: #1f6f9f;
+  --danger: #b42318;
+  --shadow: 0 12px 28px rgba(24, 32, 38, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.45 "Segoe UI", Arial, sans-serif;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 72px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+}
+
+.brand {
+  min-width: 0;
+}
+
+h1,
+h2 {
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: 20px;
+}
+
+h2 {
+  font-size: 16px;
+}
+
+p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.mode-tabs {
+  display: inline-grid;
+  grid-auto-flow: column;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.tab,
+button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab {
+  background: transparent;
+  color: var(--muted);
+}
+
+.tab.active {
+  background: var(--panel);
+  color: var(--accent-dark);
+  box-shadow: 0 2px 8px rgba(24, 32, 38, 0.08);
+}
+
+button.primary,
+button:not(.tab):not(.ghost):not(.secondary) {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+button.secondary,
+button.ghost {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+button.danger {
+  color: var(--danger);
+}
+
+button:hover {
+  filter: brightness(0.98);
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) 380px;
+  gap: 16px;
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.workspace,
+.side-stack {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.compact-panel {
+  padding: 14px;
+}
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+}
+
+.panel-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.default-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.default-text {
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.upload-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.simple-grid,
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.simple-grid {
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  margin-bottom: 14px;
+}
+
+.form-grid {
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  padding-top: 22px;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  padding: 7px 9px;
+  font: inherit;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid rgba(31, 111, 159, 0.18);
+  border-color: var(--blue);
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  min-height: 16px;
+}
+
+.advanced {
+  margin: 4px 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.advanced summary {
+  min-height: 38px;
+  padding: 9px 11px;
+  color: var(--blue);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.advanced .form-grid {
+  padding: 0 11px 12px;
+}
+
+.jobs-list {
+  display: grid;
+  gap: 8px;
+  max-height: 230px;
+  overflow: auto;
+}
+
+.job-item,
+.result-item {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.job-item:hover,
+.result-item:hover,
+.job-item.active,
+.result-item.active {
+  border-color: var(--blue);
+  background: #f0f7fa;
+}
+
+.job-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 650;
+}
+
+.status {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.status.running {
+  color: var(--blue);
+}
+
+.status.success {
+  color: var(--accent);
+}
+
+.status.failed {
+  color: var(--danger);
+}
+
+.log {
+  min-height: 240px;
+  max-height: 310px;
+  overflow: auto;
+  margin: 0;
+  border-radius: 8px;
+  border: 1px solid #232b33;
+  background: #121820;
+  color: #d9e3ed;
+  padding: 12px;
+  white-space: pre-wrap;
+  font: 12px/1.5 Consolas, "Cascadia Mono", monospace;
+}
+
+.result-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.preview-box {
+  overflow: hidden;
+  border-radius: 8px;
+  background: #000000;
+}
+
+video,
+#previewStream {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  background: #000000;
+}
+
+#previewStream {
+  object-fit: contain;
+}
+
+#previewStatus {
+  margin-top: 8px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  max-width: 420px;
+  border-radius: 8px;
+  background: #182026;
+  color: #ffffff;
+  padding: 12px 14px;
+  box-shadow: 0 10px 26px rgba(24, 32, 38, 0.24);
+}
+
+@media (max-width: 1120px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .side-stack {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .mode-tabs {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .simple-grid,
+  .form-grid,
+  .upload-strip {
+    grid-template-columns: 1fr;
+  }
+}

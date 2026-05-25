@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+
+datasets/
+exps/
+
+tracknet_webui/uploads/
+tracknet_webui/outputs/
+tracknet_webui/runs/
+
+.venv/
+venv/
+env/
