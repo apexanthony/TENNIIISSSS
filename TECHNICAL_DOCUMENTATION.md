@@ -1,3 +1,22 @@
+## 当前版本命名与推荐路线
+
+本项目已将落地识别后处理版本整合为连续的 V4 系列：
+
+```text
+V4.1 = 规则落地检测，代码位于 versions/v4/v4_1_bounce_rule
+V4.2 = 轨迹候选分类器，代码位于 versions/v4/v4_2_bounce_classifier
+V4.3 = 事件级分类 + offset 帧修正，代码位于 versions/v4/v4_3_event_classifier
+```
+
+旧命名对应关系：
+
+```text
+old V4 -> V4.1
+old V5 -> V4.2
+old V4.3 -> V4.3
+```
+
+当前推荐主线是 V3 轻量轨迹模型 + V4.3 事件级落地检测。V4.1 作为可解释规则基线，V4.2 作为轻量二阶段候选分类器，V4.3 作为完整数据集验证后效果最好的泛化版本。
 # 项目技术文档：基于 TrackNet 的网球轨迹跟踪与轻量化部署
 
 ## 1. 项目目标
@@ -22,6 +41,10 @@
 versions/v1_original/      原始 TrackNet 基线
 versions/v2_heatmap/       单通道 heatmap 改进版本
 versions/v3_lightweight/   轻量化部署版本
+versions/v4/
+  v4_1_bounce_rule/        V4.1 规则落地识别模块
+  v4_2_bounce_classifier/  V4.2 轨迹候选分类器
+  v4_3_event_classifier/   V4.3 事件级分类 + offset 修正
 tracknet_webui/            本地 Web 控制台
 datasets/                  数据集与标签
 exps/                      实验权重、ONNX 和推理输出
@@ -197,13 +220,13 @@ V3 的目标是显著降低计算量，使模型更接近 RK3588 部署需求。
 主要文件：
 
 ```text
-versions/v3_lightweight/model_v3.py
-versions/v3_lightweight/main_v3.py
-versions/v3_lightweight/general_v3.py
-versions/v3_lightweight/infer_on_video_v3_batch.py
-versions/v3_lightweight/infer_on_video_v3_onnx.py
-versions/v3_lightweight/export_onnx_v3.py
-versions/v3_lightweight/eval_thresholds_v3.py
+versions/v3_lightweight/v3_0_base/model_v3.py
+versions/v3_lightweight/v3_0_base/main_v3.py
+versions/v3_lightweight/v3_0_base/general_v3.py
+versions/v3_lightweight/v3_0_base/infer_on_video_v3_batch.py
+versions/v3_lightweight/v3_0_base/infer_on_video_v3_onnx.py
+versions/v3_lightweight/v3_0_base/export_onnx_v3.py
+versions/v3_lightweight/v3_0_base/eval_thresholds_v3.py
 ```
 
 V3 的核心改动：
@@ -263,7 +286,7 @@ V3 是当前最适合部署的版本。
 
 ## 5. 数据处理流程
 
-V2/V3 数据集读取由 `versions/v2_heatmap/datasets_v2.py` 和 `versions/v3_lightweight/datasets_v2.py` 完成。两个版本各保留一份数据集读取代码，便于从项目根目录直接运行对应版本脚本。
+V2/V3 数据集读取由 `versions/v2_heatmap/datasets_v2.py` 和 `versions/v3_lightweight/v3_0_base/datasets_v2.py` 完成。两个版本各保留一份数据集读取代码，便于从项目根目录直接运行对应版本脚本。
 
 每个样本读取连续 3 帧：
 
@@ -473,18 +496,18 @@ V2:
   versions/v2_heatmap/export_onnx_v2.py
 
 V3:
-  versions/v3_lightweight/model_v3.py
-  versions/v3_lightweight/main_v3.py
-  versions/v3_lightweight/general_v3.py
-  versions/v3_lightweight/infer_on_video_v3_batch.py
-  versions/v3_lightweight/infer_on_video_v3_onnx.py
-  versions/v3_lightweight/export_onnx_v3.py
-  versions/v3_lightweight/eval_thresholds_v3.py
+  versions/v3_lightweight/v3_0_base/model_v3.py
+  versions/v3_lightweight/v3_0_base/main_v3.py
+  versions/v3_lightweight/v3_0_base/general_v3.py
+  versions/v3_lightweight/v3_0_base/infer_on_video_v3_batch.py
+  versions/v3_lightweight/v3_0_base/infer_on_video_v3_onnx.py
+  versions/v3_lightweight/v3_0_base/export_onnx_v3.py
+  versions/v3_lightweight/v3_0_base/eval_thresholds_v3.py
 
 数据:
   versions/v2_heatmap/prepare_dataset_v2.py
   versions/v2_heatmap/datasets_v2.py
-  versions/v3_lightweight/datasets_v2.py
+  versions/v3_lightweight/v3_0_base/datasets_v2.py
   datasets/trackNet/labels_train.csv
   datasets/trackNet/labels_val.csv
 
@@ -493,4 +516,716 @@ WebUI:
   tracknet_webui/static/index.html
   tracknet_webui/static/app.js
   tracknet_webui/static/styles.css
+
+## V4 规则落地识别模块
+
+V4 的目标是在不新增模型、不修改 V3 主模型的前提下，基于 V3 输出的网球球心轨迹完成落地/反弹事件检测。该模块服务于后续自动判罚链路，但当前阶段只判断是否发生落地，不判断界内/出界。
+
+### 设计原则
+
+现有数据集是全场对打视频，画面上下分别对应两个半场。网球可能在上半场或下半场落地，击球方向也会导致图像坐标中的 `y` 变化方向不同。因此 V4 不使用单一的 `vy_before > 0 and vy_after < 0` 规则，而采用方向无关的局部轨迹几何突变。
+
+核心判断不再是“向下后向上”，而是：
+
+```text
+连续球心轨迹上出现合理范围内的速度方向变化、加速度突变和轨迹折点。
 ```
+
+同时，击球、遮挡恢复和误检跳点也会造成轨迹突变，因此 V4 使用软评分机制：
+
+```text
+适中的突变加分
+过小的变化扣分
+过大的突变扣分
+轨迹连续加分
+轨迹断裂或跳点过大扣分
+击球式速度提升扣分
+```
+
+### 算法流程
+
+```text
+V3 输出球心轨迹
+  -> 低置信度点过滤
+  -> 异常跳点过滤
+  -> 短缺失线性插值
+  -> 加权移动平均平滑
+  -> 计算前后窗口平均速度向量
+  -> 计算夹角、加速度突变、速度范围、跳点和连续性
+  -> 软评分得到落地候选
+  -> 可落地区域 ROI 加分、扣分或硬过滤
+  -> NMS 合并连续候选
+  -> 输出落地帧、落地点和评分
+```
+
+### 默认参数
+
+```text
+min_conf          = 0.30
+max_gap           = 3
+smooth_window     = 5
+before_window     = 3
+after_window      = 3
+min_speed         = 2.0
+speed_max         = 90.0
+speed_ratio_max   = 5.0
+hit_speedup_ratio = 1.2
+hit_speedup_delta = 7.0
+hit_speedup_penalty = 2.0
+angle_min         = 20.0
+angle_weak_max    = 12.0
+angle_good_max    = 75.0
+angle_hard_max    = 90.0
+accel_min         = 3.0
+accel_weak_max    = 8.0
+accel_good_max    = 24.0
+accel_hard_max    = 32.0
+jump_good_max     = 50.0
+jump_hard_max     = 120.0
+min_valid_points  = 6
+min_score         = 9.0
+nms_window        = 22
+region_bonus      = 1.0
+region_penalty    = 4.0
+region_hard_filter = false
+```
+
+### 可落地区域 ROI
+
+观众席、广告牌、球员身体附近、画面边缘和非球场地面区域都可能产生轨迹突变，从而被 V4 误判为落地。为减少这类误判，V4 增加可落地区域 ROI 约束。
+
+这个 ROI 不是逐帧标注，而是场景级标注：对于固定机位或同一 `game`，只需要在一张参考帧上手动圈出网球可能落地的球场地面区域。由于相机视角固定，该多边形可以复用于该 `game` 下的所有 clip。
+
+标注命令：
+
+```powershell
+python tools/annotate_ground_region.py --game game1
+```
+
+按 clip 单独标注：
+
+```powershell
+python tools/annotate_ground_region.py --game game1 --clip Clip1
+```
+
+默认输出：
+
+```text
+configs/court_regions/game1.json
+configs/court_regions/game1_Clip1.json
+```
+
+JSON 示例：
+
+```json
+{
+  "game": "game1",
+  "source_frame": "datasets/trackNet/images/game1/Clip1/0000.jpg",
+  "frame_width": 1280,
+  "frame_height": 720,
+  "playable_ground": [
+    [[120, 140], [1160, 140], [1210, 690], [80, 690]]
+  ]
+}
+```
+
+ROI 默认作为软约束参与评分：
+
+```text
+候选点在可落地区域内: score += region_bonus
+候选点在可落地区域外: score -= region_penalty
+```
+
+如果启用 `--region-hard-filter`，区域外候选会被直接过滤。实际项目中建议先使用软约束，因为边缘出界落地仍然可能发生在球场外延地面区域；后续做界内/出界判罚时，再单独引入球场线几何模型。
+
+### V4.1 击球保护
+
+错误可视化显示，部分 FP 来自击球附近的轨迹突变。击球后常出现短时间内速度明显增大，随后候选点在 6 到 10 帧内仍保留较高夹角和加速度分数。V4.1 增加 `hit_guard` 二阶段扣分：
+
+```text
+若候选点之前 hit_guard_window 帧内出现疑似击球式加速:
+  speed_after / speed_before >= hit_guard_speedup_ratio
+  speed_after - speed_before >= hit_guard_speedup_delta
+  speed_after >= hit_guard_min_speed_after
+则对当前候选 score -= hit_guard_penalty
+```
+
+当前推荐：
+
+```text
+enable_v41                 = true
+hit_guard_window           = 8
+hit_guard_speedup_ratio    = 1.6
+hit_guard_speedup_delta    = 10.0
+hit_guard_min_speed_after  = 18.0
+hit_guard_penalty          = 3.0
+```
+
+V4.1 中还保留了候选时间重定位实验开关 `--enable-relocation`。当前数据上，重定位虽然能降低平均帧误差，但会把部分候选移到击球附近，导致总体 F1 下降，因此默认关闭。
+
+### V4.2 事件合并与弱反弹补分
+
+错误分析发现，部分 `status=2` 标签会连续出现，例如 `[251, 252]`。如果评估时把每一帧都当成独立落地事件，而检测端又使用 NMS 合并候选，就会人为增加 FN。因此 V4.2 将 3 帧以内的连续 `status=2` 合并为同一次落地事件。
+
+V4.2 还增加两类补偿规则：
+
+```text
+低速弱反弹补分:
+  angle_change 较大
+  jump_distance 较小
+  speed_before / speed_after 都较低
+
+尖锐真实落地条件放宽:
+  angle_change 和 accel_norm 很大
+  但轨迹连续、跳点不大、速度不是击球式突增
+```
+
+实验性的 `--enable-late-refine` 只允许候选向后重定位，但当前全量评估会增加击球附近 FP，因此默认关闭。
+
+### V4.3 自适应轨迹统计
+
+V4.3 的目标不是继续针对当前数据集手调阈值，而是探索跨视频泛化。它会对每个 clip 的候选轨迹特征计算分位数统计：
+
+```text
+low_speed_mean: speed_mean 的低分位数
+normal_jump: jump_distance 的常规上界
+hard_jump: jump_distance 的高分位异常上界
+high_accel: accel_norm 的高分位数
+```
+
+然后基于这些相对阈值进行低速弱反弹补分、尖锐落地补分和异常跳点惩罚。当前数据集上，自适应加分会增加击球附近 FP，因此 V4.3 暂时不作为默认推荐；保守配置只保留自适应跳点惩罚，用于后续新机位数据验证。
+
+### 评估方式
+
+数据集 `status` 字段含义：
+
+```text
+0 = flying
+1 = hit
+2 = bouncing
+```
+
+使用现有标签中的 `status=2` 作为真实落地帧：
+
+```powershell
+python versions/v4/v4_1_bounce_rule/eval_bounce_rule.py ^
+  --split all ^
+  --match-tolerance 3 ^
+  --out-csv .\exps\v4_1_bounce_rule\bounce_rule_all_candidates.csv
+```
+
+带 ROI 评估：
+
+```powershell
+python versions/v4/v4_1_bounce_rule/eval_bounce_rule.py ^
+  --split all ^
+  --match-tolerance 3 ^
+  --region-root .\configs\court_regions ^
+  --out-csv .\exps\v4_1_bounce_rule\bounce_rule_roi_candidates.csv
+```
+
+匹配规则：
+
+```text
+预测帧与真实 status=2 帧相差 <= 3 帧，记为检测正确。
+```
+
+当前推荐参数在完整 95 个 Clip 上的评估结果：
+
+```text
+TP        = 327
+FP        = 103
+FN        = 196
+Hit FP    = 39
+Precision = 0.7605
+Recall    = 0.6252
+F1        = 0.6863
+AvgErr    = 1.165 frames
+```
+
+ROI + V4.1 击球保护推荐命令：
+
+```powershell
+python versions/v4/v4_1_bounce_rule/eval_bounce_rule.py ^
+  --split all ^
+  --match-tolerance 3 ^
+  --region-root .\configs\court_regions ^
+  --region-bonus 0 ^
+  --region-penalty 4 ^
+  --min-score 9.5 ^
+  --enable-v41 ^
+  --out-csv .\exps\v4_1_bounce_rule\bounce_rule_v41_hitguard_candidates.csv
+```
+
+当前 V4.1 结果：
+
+```text
+TP        = 337
+FP        = 75
+FN        = 177
+Hit FP    = 24
+Precision = 0.8180
+Recall    = 0.6556
+F1        = 0.7279
+AvgErr    = 1.092 frames
+```
+
+V4.2 推荐命令：
+
+```powershell
+python versions/v4/v4_1_bounce_rule/eval_bounce_rule.py ^
+  --split all ^
+  --match-tolerance 3 ^
+  --region-root .\configs\court_regions ^
+  --region-bonus 0 ^
+  --region-penalty 4 ^
+  --min-score 9.5 ^
+  --enable-v41 ^
+  --enable-v42 ^
+  --out-csv .\exps\v4_1_bounce_rule\bounce_rule_v42_nolate_candidates.csv
+```
+
+当前 V4.2 结果：
+
+```text
+TP        = 364
+FP        = 90
+FN        = 150
+Hit FP    = 34
+Precision = 0.8018
+Recall    = 0.7082
+F1        = 0.7521
+AvgErr    = 1.085 frames
+```
+
+V4.3 保守配置命令：
+
+```powershell
+python versions/v4/v4_1_bounce_rule/eval_bounce_rule.py ^
+  --split all ^
+  --match-tolerance 3 ^
+  --region-root .\configs\court_regions ^
+  --region-bonus 0 ^
+  --region-penalty 4 ^
+  --min-score 10 ^
+  --enable-v41 ^
+  --enable-v42 ^
+  --enable-v43 ^
+  --adaptive-low-speed-bonus 0 ^
+  --adaptive-sharp-bonus 0 ^
+  --adaptive-jump-penalty 2 ^
+  --out-csv .\exps\v4_1_bounce_rule\bounce_rule_v43_conservative_candidates.csv
+```
+
+当前 V4.3 保守配置结果：
+
+```text
+TP        = 363
+FP        = 91
+FN        = 151
+Hit FP    = 35
+Precision = 0.7996
+Recall    = 0.7062
+F1        = 0.7500
+AvgErr    = 1.069 frames
+```
+
+因此当前项目默认推荐 V4.2，V4.3 作为跨数据泛化实验开关保留。
+
+### ACE 外部验证
+
+为避免只围绕当前 TrackNet clip 调参，项目引入 ACE-Trajectories_noTosses 作为轨迹级外部验证集。该数据集不包含图片，但提供：
+
+```text
+r_img.npy: [T, 3]，包含 u, v, visibility
+times.npy: 每帧时间戳
+hits.npy: 网球落地时间戳
+info.json: 原始 TrackNet game、clip、start、end 信息
+```
+
+转换脚本：
+
+```text
+tools/convert_ace_to_v4_eval.py
+```
+
+脚本会将 `r_img.npy` 转为 V4 可读的 `frame_id,x,y,confidence,status` 轨迹 CSV，并将 `hits.npy` 映射到最近的 `times.npy` 帧作为 `status=2` 落地事件，然后分别评估 V4.2 和 V4.3。
+
+运行命令：
+
+```powershell
+python tools/convert_ace_to_v4_eval.py ^
+  --ace-root .\datasets\external\ACE-Trajectories_noTosses ^
+  --out-dir .\exps\v4_1_bounce_rule\ace_no_tosses ^
+  --region-root .\configs\court_regions ^
+  --match-tolerance 3
+```
+
+当前本机已下载部分 ACE 数据，其中 356 条完整轨迹包含落地事件。评估结果：
+
+```text
+ACE V4.2:
+TP        = 218
+FP        = 102
+FN        = 146
+Precision = 0.6813
+Recall    = 0.5989
+F1        = 0.6374
+AvgErr    = 1.216 frames
+
+ACE V4.3 conservative:
+TP        = 217
+FP        = 102
+FN        = 147
+Precision = 0.6803
+Recall    = 0.5962
+F1        = 0.6354
+AvgErr    = 1.217 frames
+```
+
+该结果说明，V4.2 在当前 TrackNet clip 评估中已经可用，但跨到 ACE 轨迹级切分后性能明显下降；V4.3 当前的自适应统计并没有解决泛化问题。后续优化应优先转向：
+
+```text
+1. 球场几何归一化 / homography。
+2. 基于轨迹状态机的落地事件检测。
+3. 使用轻量轨迹特征分类器替代更多手写阈值。
+4. 构建跨机位、小规模人工落地标注验证集。
+```
+
+## V4.2 轨迹候选分类器
+
+V4 系列证明纯规则可以作为落地识别 baseline，但在原始数据集上仍存在 Recall 不足、击球附近误判和跨数据泛化下降的问题。V4.2 将流程改为两阶段：
+
+```text
+第一阶段: V4.2 规则生成候选
+第二阶段: 轻量轨迹特征分类器判断候选是否为真实落地
+```
+
+V4.2 不读取图像，不增加视觉检测模型，只使用候选点附近的轨迹几何特征，因此计算量很小，部署成本远低于新增 YOLO 或图像分类器。
+
+### 样本构造
+
+对每个候选点，根据它与真实落地事件的距离自动生成标签：
+
+```text
+positive: 距离最近 status=2 落地事件 <= 3 帧
+negative: 距离最近 status=2 落地事件 > 6 帧
+ignore:   4 到 6 帧之间的边界样本
+```
+
+默认按 game 划分：
+
+```text
+train: game1-game7
+val:   game8-game10
+```
+
+这样比 all split 更接近真实泛化测试。
+
+### 特征
+
+当前 V4.2 使用 23 个轨迹特征，包括：
+
+```text
+rule_score
+angle_change
+accel_norm
+speed_before
+speed_after
+speed_mean
+speed_ratio
+speed_delta
+jump_distance
+valid_points
+confidence
+frame_pos
+in_ground_region
+recent_hit_penalty
+angle_over_speed
+accel_over_speed
+jump_over_speed
+speed_mean_rel
+accel_rel
+jump_rel
+```
+
+当前随机森林的重要特征排序显示，模型主要依赖：
+
+```text
+rule_score
+in_ground_region
+speed_delta
+angle_change
+accel_rel
+accel_norm
+speed_ratio
+angle_over_speed
+accel_over_speed
+```
+
+这些特征符合落地事件的轨迹几何特征，不依赖图像外观。
+
+### 训练命令
+
+```powershell
+python versions/v4/v4_2_bounce_classifier/train_eval_bounce_classifier.py ^
+  --labels-root .\datasets\trackNet\images ^
+  --region-root .\configs\court_regions ^
+  --out-dir .\exps\v4_2_bounce_classifier ^
+  --candidate-min-score 3.0 ^
+  --positive-tolerance 3 ^
+  --negative-gap 6
+```
+
+输出：
+
+```text
+exps/v4_2_bounce_classifier/model_random_forest.pkl
+exps/v4_2_bounce_classifier/metrics.csv
+exps/v4_2_bounce_classifier/train_samples.csv
+exps/v4_2_bounce_classifier/val_samples.csv
+```
+
+### 当前结果
+
+同一验证集 `game8-game10` 上，V4.2 baseline：
+
+```text
+Precision = 0.8559
+Recall    = 0.6601
+F1        = 0.7454
+TP        = 101
+FP        = 17
+FN        = 52
+```
+
+V4.2 RandomForest：
+
+```text
+train events:
+Precision = 0.9217
+Recall    = 0.8809
+F1        = 0.9008
+
+val events:
+Precision = 0.9318
+Recall    = 0.8039
+F1        = 0.8632
+
+all events:
+Precision = 0.9245
+Recall    = 0.8580
+F1        = 0.8900
+```
+
+该结果说明，当前阶段继续堆手写规则的收益有限，而“规则候选 + 轨迹分类器”能显著提升落地识别效果。
+
+如果应用场景更重视极高 Precision，可使用：
+
+```powershell
+python versions/v4/v4_1_bounce_rule/eval_bounce_rule.py ^
+  --split all ^
+  --match-tolerance 3 ^
+  --accel-weak-max 10 ^
+  --hit-speedup-delta 8 ^
+  --nms-window 24 ^
+  --out-csv .\exps\v4_1_bounce_rule\bounce_rule_all_precision080_candidates.csv
+```
+
+极高 Precision 参数结果：
+
+```text
+TP        = 210
+FP        = 52
+FN        = 313
+Hit FP    = 21
+Precision = 0.8015
+Recall    = 0.4015
+F1        = 0.5350
+AvgErr    = 1.214 frames
+```
+
+参数网格搜索：
+
+```powershell
+python versions/v4/v4_1_bounce_rule/tune_bounce_rule.py ^
+  --split all ^
+  --match-tolerance 3 ^
+  --out-csv .\exps\v4_1_bounce_rule\bounce_rule_tuning.csv
+```
+
+带 ROI 参数网格搜索：
+
+```powershell
+python versions/v4/v4_1_bounce_rule/tune_bounce_rule.py ^
+  --split all ^
+  --match-tolerance 3 ^
+  --region-root .\configs\court_regions ^
+  --out-csv .\exps\v4_1_bounce_rule\bounce_rule_roi_tuning.csv
+```
+
+V4.1 击球保护参数小网格搜索：
+
+```powershell
+python versions/v4/v4_1_bounce_rule/tune_bounce_rule.py ^
+  --split all ^
+  --match-tolerance 3 ^
+  --region-root .\configs\court_regions ^
+  --region-bonus 0 ^
+  --region-penalty 4 ^
+  --enable-v41 ^
+  --min-score-list 9,9.5,10 ^
+  --hit-guard-window-list 6,8,10 ^
+  --hit-guard-penalty-list 2,3,4 ^
+  --out-csv .\exps\v4_1_bounce_rule\bounce_rule_v41_hitguard_tiny_tuning.csv
+```
+
+### 错误可视化
+
+完成评估后，可以将 FP/FN 最集中的片段导出为图片序列和 MP4 小视频，用于判断错误来源是击球误判、落地帧偏移、轨迹跳点、遮挡恢复还是标签边界问题。
+
+```powershell
+python tools/visualize_bounce_errors.py ^
+  --candidates-csv .\exps\v4_1_bounce_rule\bounce_rule_v42_nolate_candidates.csv ^
+  --labels-root .\datasets\trackNet\images ^
+  --region-root .\configs\court_regions ^
+  --out-dir .\exps\v4_1_bounce_rule\error_visuals_v42 ^
+  --match-tolerance 3 ^
+  --context 10 ^
+  --top-clips 8 ^
+  --max-events 40
+```
+
+### 视频推理
+
+V4 可以直接读取 V3 推理输出的轨迹 CSV：
+
+```powershell
+python versions/v4/v4_1_bounce_rule/infer_video_bounce_rule.py ^
+  --track-csv .\exps\lite_heatmap_v3_270x480_from240\demo_v3_pt.csv ^
+  --out-csv .\exps\lite_heatmap_v3_270x480_from240\demo_bounces.csv ^
+  --video-path .\示例视频1.mp4 ^
+  --video-out-path .\exps\lite_heatmap_v3_270x480_from240\demo_bounces.mp4 ^
+  --court-region-json .\configs\court_regions\game1.json ^
+  --region-bonus 0 ^
+  --region-penalty 4 ^
+  --min-score 9.5 ^
+  --enable-v41 ^
+  --enable-v42 ^
+  --codec mp4v
+```
+
+### 新增文件
+
+```text
+versions/v4/v4_1_bounce_rule/bounce_rule_detector.py
+versions/v4/v4_1_bounce_rule/eval_bounce_rule.py
+versions/v4/v4_1_bounce_rule/tune_bounce_rule.py
+versions/v4/v4_1_bounce_rule/infer_video_bounce_rule.py
+versions/v4/v4_1_bounce_rule/README.md
+tools/annotate_ground_region.py
+tools/visualize_bounce_errors.py
+configs/court_regions/.gitkeep
+```
+```
+
+## V4 系列统一路线
+
+当前落地识别后处理统一为三个连续版本：
+
+```text
+V4.1 规则基线：versions/v4/v4_1_bounce_rule
+V4.2 轨迹候选分类器：versions/v4/v4_2_bounce_classifier
+V4.3 事件级分类 + offset 修正：versions/v4/v4_3_event_classifier
+```
+
+推荐主线：
+
+```text
+V3 轻量热图轨迹模型 -> V4.3 event classifier -> 落地帧与标注视频输出
+```
+
+V4.3 当前推荐模型：
+
+```text
+exps/v4_3_event_classifier_cand2_final/model_event_offset.pkl
+```
+
+V4.3 示例视频推理：
+
+```powershell
+python versions\v4\v4_3_event_classifier\infer_event_classifier.py ^
+  --track-csv .\exps\demo_best_v5\demo_v3_track_thr030.csv ^
+  --model-path .\exps\v4_3_event_classifier_cand2_final\model_event_offset.pkl ^
+  --out-csv .\exps\demo_best_v5\demo_bounces_v43.csv ^
+  --video-path .\示例视频1.mp4 ^
+  --video-out-path .\exps\demo_best_v5\demo_bounces_v43.mp4 ^
+  --court-region-json .\configs\court_regions\game1.json ^
+  --jump-hard-max 240 ^
+  --codec mp4v
+```
+
+## V5.1 FPS-Adaptive Event Processing
+
+The V3.7 + V5.1 product pipeline now represents event windows in seconds and
+converts them to frames with the source-video FPS. This keeps event semantics
+consistent across 25/30/60 FPS inputs. Default timing is a 0.60-second minimum
+event gap, a 0.15-second minimum flight, and a -0.067 to +0.20-second local
+refinement window (extended to +0.40 seconds for fast vertical motion).
+
+The `v37_bounce` state machine also suppresses serve tosses. Suppression is
+allowed only when a new trajectory/point begins. A ball rising mostly
+vertically from the serving player's hand or upper-body column is marked as a
+toss until the next player contact, and those frames cannot generate bounce
+events. Once the rally is established, ordinary upward ball motion does not
+trigger toss suppression.
+
+V5.1 additionally uses the right-side mini-court trajectory as a second motion
+space. Direction reversal, mapped acceleration and mapped speed change provide
+court-space bounce evidence. This evidence is rewarded when it agrees with the
+image trajectory. A strong mapped-coordinate discontinuity without matching
+image motion is treated as likely homography jitter and penalized. Therefore
+automatic court-line errors cannot independently produce a bounce event.
+
+The subsequent robustness upgrade validates and smooths homography corners,
+assigns a per-frame `court_quality`, stabilizes at most two court-player poses,
+and uses an explicit waiting/toss/contact/flying/approaching-player state
+machine. Landing-time refinement searches a FPS-scaled interval and prefers
+the earliest reliable low-speed reversal instead of the later maximum rebound
+change. Event output now includes `frame_start`, `frame_end` and
+`timing_confidence`. A conservative bidirectional trajectory check removes an
+observation only when forward and backward predictions agree with each other
+but both reject the current point.
+
+On the manually reviewed sample video 4 regression, the optimized pipeline
+predicted frames `68, 151, 233, 326, 388`. With a +/-3-frame tolerance,
+Precision, Recall and F1 were all 1.0000 and the mean distance to the annotated
+event intervals was 0.20 frames. This is a single-video regression result, not
+a cross-dataset accuracy claim.
+
+完整数据集优化路线以 V4.3 为主：先跑 raw metrics，再跑 observable metrics，最后按 game/clip 级 FP/FN 明细决定是否调整候选阈值、特征或 offset 模型。单视频 repair 规则不再作为默认泛化路径。
+## V5.2 Integrated Runtime Package
+
+V5.2 does not introduce a new model or event algorithm. It freezes the current
+stable V3.7 + V5.1 behavior into one self-contained runtime directory:
+
+```text
+versions/v5_2_integrated_pipeline/
+  run_pipeline.py
+  tracking/     model, heatmap candidates, trajectory stabilization
+  context/      MediaPipe players and court homography
+  events/       cleanup and bounce recognition
+  pipeline/     context assembly, recognition and rendering
+  evaluation/   event Precision/Recall/F1 utility
+```
+
+The single entry point produces a rendered result video, a trajectory video,
+raw/context trajectory CSV files, a bounce-event CSV, and reusable player-pose
+cache. Detailed module flow is maintained in
+`versions/v5_2_integrated_pipeline/README.md`.
+
+V5.2 also separates event existence from contact-frame timing. A conservative
+piecewise-motion refinement is applied only to low-confidence events with a
+multi-frame uncertainty interval. Corrections remain inside the existing
+interval and are recorded through `original_frame`, `frame_offset`, and
+`timing_method`, so timing changes remain auditable.
