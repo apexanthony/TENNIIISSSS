@@ -1,0 +1,26 @@
+{
+  "game": "game6",
+  "source_frame": "datasets\\trackNet\\images\\game6\\Clip1\\0000.jpg",
+  "frame_width": 1280,
+  "frame_height": 720,
+  "playable_ground": [
+    [
+      [
+        385,
+        183
+      ],
+      [
+        125,
+        659
+      ],
+      [
+        1222,
+        661
+      ],
+      [
+        907,
+        178
+      ]
+    ]
+  ]
+}

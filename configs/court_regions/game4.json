@@ -1,0 +1,34 @@
+{
+  "game": "game4",
+  "source_frame": "datasets\\trackNet\\images\\game4\\Clip1\\0000.jpg",
+  "frame_width": 1280,
+  "frame_height": 720,
+  "playable_ground": [
+    [
+      [
+        429,
+        136
+      ],
+      [
+        1,
+        377
+      ],
+      [
+        6,
+        604
+      ],
+      [
+        1259,
+        622
+      ],
+      [
+        1267,
+        441
+      ],
+      [
+        863,
+        136
+      ]
+    ]
+  ]
+}
