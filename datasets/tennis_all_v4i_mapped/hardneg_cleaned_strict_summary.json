@@ -1,0 +1,33 @@
+{
+  "total_rows": 17909,
+  "accepted_direct": 13794,
+  "dropped_ambiguous_or_out_of_tolerance": 100,
+  "accepted_mirrored": 4015,
+  "accepted_before_deduplication": 17809,
+  "dropped_duplicate_candidates": 7866,
+  "output_rows": 9943,
+  "source": "datasets\\tennis_all_v4i_mapped\\annotations_mapped.csv",
+  "orientation_tolerance_px": 5.0,
+  "ambiguity_margin_px": 3.0,
+  "unique_keys": 9943,
+  "duplicate_output_keys": 0,
+  "max_selected_error": 3.5,
+  "mean_selected_error": 0.002715478225887559,
+  "splits": {
+    "test": {
+      "rows": 138,
+      "direct": 138,
+      "mirrored": 0
+    },
+    "train": {
+      "rows": 7866,
+      "direct": 5871,
+      "mirrored": 1995
+    },
+    "valid": {
+      "rows": 1939,
+      "direct": 1939,
+      "mirrored": 0
+    }
+  }
+}

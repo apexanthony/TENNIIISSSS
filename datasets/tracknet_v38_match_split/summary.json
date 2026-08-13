@@ -1,0 +1,57 @@
+{
+  "protocol": "games1-7 development; last clip of each development game for validation; games8-10 test",
+  "tracknet_root": "E:\\Tracknet1-main1\\datasets\\trackNet",
+  "path_order": "path1=t, path2=t-1, path3=t-2",
+  "validation_clips": [
+    "game1/Clip13",
+    "game2/Clip8",
+    "game3/Clip9",
+    "game4/Clip7",
+    "game5/Clip15",
+    "game6/Clip4",
+    "game7/Clip9"
+  ],
+  "splits": {
+    "train": {
+      "samples": 11970,
+      "clips": 58,
+      "visible": 11561,
+      "invisible": 409,
+      "games": [
+        "game1",
+        "game2",
+        "game3",
+        "game4",
+        "game5",
+        "game6",
+        "game7"
+      ]
+    },
+    "valid": {
+      "samples": 2060,
+      "clips": 7,
+      "visible": 1947,
+      "invisible": 113,
+      "games": [
+        "game1",
+        "game2",
+        "game3",
+        "game4",
+        "game5",
+        "game6",
+        "game7"
+      ]
+    },
+    "test": {
+      "samples": 5615,
+      "clips": 30,
+      "visible": 5418,
+      "invisible": 197,
+      "games": [
+        "game8",
+        "game9",
+        "game10"
+      ]
+    }
+  }
+}

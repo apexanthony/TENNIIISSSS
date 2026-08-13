@@ -100,6 +100,8 @@ class TrackNetDatasetV37HardNeg(Dataset):
             "visibility": np.int64(visibility),
             "x": np.float32(x),
             "y": np.float32(y),
+            "orig_width": np.float32(orig_width),
+            "orig_height": np.float32(orig_height),
             "clip_key": str(row["clip_key"]),
             "frame_id": np.int64(row["frame_id"]),
         }
@@ -118,6 +120,9 @@ class TrackNetDatasetV37HardNeg(Dataset):
     @classmethod
     def load_mapped_annotations(cls, mapped_csv):
         mapped = {}
+        if not mapped_csv:
+            print("mapped hard-negative annotations disabled", flush=True)
+            return mapped
         path = Path(mapped_csv)
         if not path.exists():
             print(f"warning: mapped csv not found: {mapped_csv}", flush=True)
