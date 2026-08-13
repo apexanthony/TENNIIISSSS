@@ -96,10 +96,12 @@ batch 8 and its own optimizer/checkpoints; only wall-clock scheduling changes:
 
 ```bash
 chmod +x versions/v3_lightweight/v3_8_coordinate_attention/run_five_ablation_parallel.sh
-MAX_PARALLEL=3 NUM_WORKERS=4 EVAL_WORKERS=4 BATCH_SIZE=8 VAL_BATCH_SIZE=16 \
+MAX_PARALLEL=3 NUM_WORKERS=4 EVAL_WORKERS=4 BATCH_SIZE=8 VAL_BATCH_SIZE=8 \
   bash versions/v3_lightweight/v3_8_coordinate_attention/run_five_ablation_parallel.sh
 ```
 
 Do not run the sequential and parallel launchers at the same time because they
 would write to the same run directories. The A10 profile deliberately caps
 parallelism at three, leaving headroom for validation and CUDA workspaces.
+With three concurrent workers, keep validation batch at 8; simultaneous
+validation at batch 16 can exceed the A10's 24 GB memory.

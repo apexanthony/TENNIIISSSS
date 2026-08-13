@@ -6,7 +6,7 @@ set -Eeuo pipefail
 SEED="${SEED:-37}"
 EPOCHS="${EPOCHS:-100}"
 BATCH_SIZE="${BATCH_SIZE:-8}"
-VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-16}"
+VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-8}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 EVAL_WORKERS="${EVAL_WORKERS:-4}"
 MAX_PARALLEL="${MAX_PARALLEL:-3}"
@@ -22,6 +22,16 @@ if (( MAX_PARALLEL < 1 || MAX_PARALLEL > 3 )); then
   echo "MAX_PARALLEL must be between 1 and 3 for the 24 GB A10 profile" >&2
   exit 2
 fi
+
+if (( MAX_PARALLEL == 3 && VAL_BATCH_SIZE > BATCH_SIZE )); then
+  echo "For three concurrent A10 workers, VAL_BATCH_SIZE (${VAL_BATCH_SIZE}) must not exceed BATCH_SIZE (${BATCH_SIZE})." >&2
+  echo "Use VAL_BATCH_SIZE=${BATCH_SIZE}; validation batch size does not change model optimization." >&2
+  exit 2
+fi
+
+# Concurrent validation temporarily changes each process's activation footprint.
+# Expandable segments reduce allocator fragmentation across those transitions.
+export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
 
 mkdir -p "${OUTPUT_ROOT}"
 
