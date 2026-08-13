@@ -67,10 +67,12 @@ def restore_rng_state(state, generator):
         return
     random.setstate(state["python"])
     np.random.set_state(state["numpy"])
-    torch.set_rng_state(state["torch"])
-    generator.set_state(state["loader_generator"])
+    # The checkpoint is loaded with map_location=device so CPU RNG tensors may
+    # arrive on CUDA. Both APIs require CPU ByteTensor states.
+    torch.set_rng_state(state["torch"].cpu())
+    generator.set_state(state["loader_generator"].cpu())
     if torch.cuda.is_available() and "cuda" in state:
-        torch.cuda.set_rng_state_all(state["cuda"])
+        torch.cuda.set_rng_state_all([item.cpu() for item in state["cuda"]])
 
 
 def seed_worker(worker_id):

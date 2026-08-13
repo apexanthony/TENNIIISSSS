@@ -82,11 +82,24 @@ variants=(baseline ca hardneg aux full)
 active_pids=()
 active_names=()
 
+cleanup_workers() {
+  local pid
+  for pid in "${active_pids[@]:-}"; do
+    if [[ -n "${pid}" ]]; then
+      kill "${pid}" 2>/dev/null || true
+    fi
+  done
+  wait 2>/dev/null || true
+}
+
+trap cleanup_workers INT TERM
+
 wait_for_oldest() {
   local pid="${active_pids[0]}"
   local name="${active_names[0]}"
   if ! wait "${pid}"; then
     echo "Variant ${name} failed; stopping the parallel launcher." >&2
+    cleanup_workers
     exit 1
   fi
   active_pids=("${active_pids[@]:1}")
