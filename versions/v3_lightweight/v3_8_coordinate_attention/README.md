@@ -89,3 +89,17 @@ when `training_state.pt` exists, evaluates the validation-selected checkpoint
 once on the held-out test games, and finally creates the ablation summary.
 Use `tmux`, `screen`, or the cloud platform's persistent-job facility so an SSH
 disconnect does not terminate training.
+
+To use more of a 24 GB A10 without changing the controlled training batch,
+launch up to three independent variants concurrently. Each variant still uses
+batch 8 and its own optimizer/checkpoints; only wall-clock scheduling changes:
+
+```bash
+chmod +x versions/v3_lightweight/v3_8_coordinate_attention/run_five_ablation_parallel.sh
+MAX_PARALLEL=3 NUM_WORKERS=4 EVAL_WORKERS=4 BATCH_SIZE=8 VAL_BATCH_SIZE=16 \
+  bash versions/v3_lightweight/v3_8_coordinate_attention/run_five_ablation_parallel.sh
+```
+
+Do not run the sequential and parallel launchers at the same time because they
+would write to the same run directories. The A10 profile deliberately caps
+parallelism at three, leaving headroom for validation and CUDA workspaces.
